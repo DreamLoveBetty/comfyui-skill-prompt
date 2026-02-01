@@ -67,18 +67,34 @@ class LLMClient:
             domain, output_requirements, options, element_context, enable_enhance
         )
 
-        # 使用流式传输增加稳定性（避免大模型超时）
-        # max_tokens 设置为 4096，确保完整输出（思考模型的推理过程也占用 token）
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
+        # 根据模型类型动态设置参数
+        model_lower = self.model.lower()
+        
+        # 构建请求参数
+        request_params = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_input}
             ],
-            temperature=0.8,
-            max_tokens=12288,  # 防止输出截断
-            stream=True  # 启用流式传输
-        )
+            "stream": True
+        }
+        
+        # Claude Thinking 模型：不传递 max_tokens 和 temperature（使用代理默认值）
+        # Gemini 模型：使用 8192
+        # 其他模型：使用 16384
+        if 'thinking' in model_lower:
+            # Claude Thinking 模型使用代理默认值
+            pass
+        elif 'gemini' in model_lower:
+            request_params["max_tokens"] = 8192
+            request_params["temperature"] = 0.8
+        else:
+            request_params["max_tokens"] = 16384
+            request_params["temperature"] = 0.8
+
+        # 使用流式传输增加稳定性（避免大模型超时）
+        response = self.client.chat.completions.create(**request_params)
 
         # 收集流式响应
         content = self._collect_stream_response(response)
